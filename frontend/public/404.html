@@ -4,12 +4,22 @@
     <meta charset="UTF-8" />
     <title>Autobody SAC</title>
     <script>
-      // SPA redirect trick for GitHub Pages
-      // Stores the full path in sessionStorage and redirects to the root
-      // index.html then reads sessionStorage and replaces the route via React Router
-      var l = window.location;
-      sessionStorage.redirect = l.pathname.replace('/autobody-system', '') + l.search + l.hash;
-      l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/autobody-system/');
+      // SPA redirect for GitHub Pages + HashRouter
+      // When GH Pages returns 404 for a path like /autobody-system/seguimiento,
+      // redirect to the root with the path converted to a hash fragment.
+      // e.g. /autobody-system/seguimiento → /autobody-system/#/seguimiento
+      (function() {
+        var basePath = '/autobody-system';
+        var path = window.location.pathname;
+        var search = window.location.search;
+        // Strip the repo base from the path
+        var routePath = path.replace(basePath, '') || '/';
+        // Build the hash URL and redirect
+        window.location.replace(
+          window.location.protocol + '//' + window.location.host +
+          basePath + '/' + '#' + routePath + search
+        );
+      })();
     </script>
   </head>
   <body></body>
