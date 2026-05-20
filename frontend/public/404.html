@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Autobody SAC</title>
+    <script>
+      // SPA redirect trick for GitHub Pages
+      // Stores the full path in sessionStorage and redirects to the root
+      // index.html then reads sessionStorage and replaces the route via React Router
+      var l = window.location;
+      sessionStorage.redirect = l.pathname.replace('/autobody-system', '') + l.search + l.hash;
+      l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/autobody-system/');
+    </script>
+  </head>
+  <body></body>
+</html>
