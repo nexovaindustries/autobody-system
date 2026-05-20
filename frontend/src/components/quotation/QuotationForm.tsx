@@ -69,12 +69,27 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
     );
 
     if (existing) {
-      setSelectedSubcomponents(prev => prev.filter(
-        s => !(s.zonaId === zonaId && s.subcomponenteId === subcomponenteId)
-      ));
-      setItems(prev => prev.filter(
-        i => !(i.zonaId === zonaId && i.subcomponenteId === subcomponenteId)
-      ));
+      if (existing.tipoIntervencion !== tipo) {
+        // Si el tipo es diferente, actualizamos el tipo de intervención directamente en lugar de deseleccionar
+        setSelectedSubcomponents(prev => prev.map(
+          s => s.zonaId === zonaId && s.subcomponenteId === subcomponenteId
+            ? { ...s, tipoIntervencion: tipo }
+            : s
+        ));
+        setItems(prev => prev.map(
+          i => i.zonaId === zonaId && i.subcomponenteId === subcomponenteId
+            ? { ...i, tipoIntervencion: tipo }
+            : i
+        ));
+      } else {
+        // Si es el mismo tipo, deseleccionamos el subcomponente
+        setSelectedSubcomponents(prev => prev.filter(
+          s => !(s.zonaId === zonaId && s.subcomponenteId === subcomponenteId)
+        ));
+        setItems(prev => prev.filter(
+          i => !(i.zonaId === zonaId && i.subcomponenteId === subcomponenteId)
+        ));
+      }
     } else {
       const zone = ZONE_BY_ID[zonaId];
       const sub = zone.subcomponents.find(s => s.id === subcomponenteId)!;
@@ -94,6 +109,15 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
 
   const updateItem = (idx: number, field: keyof QuotationItem, value: string | number | InterventionType) => {
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+    
+    if (field === 'tipoIntervencion') {
+      const item = items[idx];
+      setSelectedSubcomponents(prev => prev.map(s =>
+        s.zonaId === item.zonaId && s.subcomponenteId === item.subcomponenteId
+          ? { ...s, tipoIntervencion: value as InterventionType }
+          : s
+      ));
+    }
   };
 
   const removeItem = (idx: number) => {
@@ -234,6 +258,7 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
             selectedZones={selectedZoneIds}
             onZoneClick={handleZoneClick}
             activeZone={activeZone ?? undefined}
+            selectedSubcomponents={selectedSubcomponents}
           />
           <ZonePanel
             zoneId={activeZone}
