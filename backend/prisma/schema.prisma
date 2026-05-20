@@ -3,24 +3,50 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite doesn't support native enums — stored as String, validated by Prisma
+enum UserRole {
+  ADMIN
+  RECEPCIONISTA
+  TECNICO
+}
+
+enum OrderStatus {
+  RECIBIDO
+  EN_EVALUACION
+  ESPERANDO_REPUESTOS
+  EN_PLANCHADO
+  EN_PINTURA
+  EN_CONTROL_CALIDAD
+  LISTO
+  ENTREGADO
+}
+
+enum InterventionType {
+  REEMPLAZO
+  PLANCHADO
+  MASILLA_Y_PINTURA
+  PINTURA_SOLAMENTE
+  REPARACION
+  REVISION_DIAGNOSTICO
+  LIMPIEZA_DETAILING
+}
+
 model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
   password  String
-  role      String   @default("RECEPCIONISTA")
+  role      UserRole @default(RECEPCIONISTA)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  quotations Quotation[]
-  orders     Order[]         @relation("TecnicoOrders")
-  statusLogs OrderStatusLog[]
+  quotations   Quotation[]
+  orders       Order[]      @relation("TecnicoOrders")
+  statusLogs   OrderStatusLog[]
 
   @@map("users")
 }
@@ -61,46 +87,46 @@ model Vehicle {
 }
 
 model Quotation {
-  id                 String   @id @default(uuid())
-  numero             String   @unique
-  clienteId          String
-  vehiculoId         String
-  aseguradora        String
-  numeroSiniestro    String?
-  tiempoEstimadoDias Int      @default(5)
-  notas              String?
-  validezDias        Int      @default(15)
-  subtotal           Float    @default(0)
-  igv                Float    @default(0)
-  total              Float    @default(0)
-  aprobada           Boolean  @default(false)
-  createdById        String
-  pdfPath            String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id               String   @id @default(uuid())
+  numero           String   @unique
+  clienteId        String
+  vehiculoId       String
+  aseguradora      String
+  numeroSiniestro  String?
+  tiempoEstimadoDias Int    @default(5)
+  notas            String?
+  validezDias      Int      @default(15)
+  subtotal         Float    @default(0)
+  igv              Float    @default(0)
+  total            Float    @default(0)
+  aprobada         Boolean  @default(false)
+  createdById      String
+  pdfPath          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  cliente   Customer        @relation(fields: [clienteId], references: [id])
-  vehiculo  Vehicle         @relation(fields: [vehiculoId], references: [id])
-  createdBy User            @relation(fields: [createdById], references: [id])
-  items     QuotationItem[]
-  order     Order?
+  cliente    Customer        @relation(fields: [clienteId], references: [id])
+  vehiculo   Vehicle         @relation(fields: [vehiculoId], references: [id])
+  createdBy  User            @relation(fields: [createdById], references: [id])
+  items      QuotationItem[]
+  order      Order?
 
   @@map("quotations")
 }
 
 model QuotationItem {
-  id                 String   @id @default(uuid())
+  id                 String           @id @default(uuid())
   cotizacionId       String
   zonaId             String
   zonaLabel          String
   subcomponenteId    String
   subcomponenteLabel String
-  tipoIntervencion   String
+  tipoIntervencion   InterventionType
   descripcion        String?
-  costoManoObra      Float    @default(0)
-  costoMateriales    Float    @default(0)
-  subtotal           Float    @default(0)
-  createdAt          DateTime @default(now())
+  costoManoObra      Float            @default(0)
+  costoMateriales    Float            @default(0)
+  subtotal           Float            @default(0)
+  createdAt          DateTime         @default(now())
 
   cotizacion Quotation @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
 
@@ -108,54 +134,54 @@ model QuotationItem {
 }
 
 model Order {
-  id                   String    @id @default(uuid())
-  codigoSeguimiento    String    @unique
-  cotizacionId         String    @unique
-  clienteId            String
-  vehiculoId           String
-  tecnicoId            String?
-  status               String    @default("RECIBIDO")
-  mensajeCliente       String?
+  id               String      @id @default(uuid())
+  codigoSeguimiento String     @unique
+  cotizacionId     String      @unique
+  clienteId        String
+  vehiculoId       String
+  tecnicoId        String?
+  status           OrderStatus @default(RECIBIDO)
+  mensajeCliente   String?
   fechaEstimadaEntrega DateTime?
   notas                String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-  cotizacion Quotation        @relation(fields: [cotizacionId], references: [id])
-  cliente    Customer         @relation(fields: [clienteId], references: [id])
-  vehiculo   Vehicle          @relation(fields: [vehiculoId], references: [id])
-  tecnico    User?            @relation("TecnicoOrders", fields: [tecnicoId], references: [id])
-  statusLogs OrderStatusLog[]
+  cotizacion  Quotation        @relation(fields: [cotizacionId], references: [id])
+  cliente     Customer         @relation(fields: [clienteId], references: [id])
+  vehiculo    Vehicle          @relation(fields: [vehiculoId], references: [id])
+  tecnico     User?            @relation("TecnicoOrders", fields: [tecnicoId], references: [id])
+  statusLogs  OrderStatusLog[]
 
   @@map("orders")
 }
 
 model OrderStatusLog {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   orderId   String
-  status    String
+  status    OrderStatus
   mensaje   String?
   userId    String
-  createdAt DateTime @default(now())
+  createdAt DateTime    @default(now())
 
-  order Order @relation(fields: [orderId], references: [id])
-  user  User  @relation(fields: [userId], references: [id])
+  order  Order @relation(fields: [orderId], references: [id])
+  user   User  @relation(fields: [userId], references: [id])
 
   @@map("order_status_logs")
 }
 
 model PriceTemplate {
-  id                 String   @id @default(uuid())
-  zonaId             String
-  zonaLabel          String
-  subcomponenteId    String
+  id               String           @id @default(uuid())
+  zonaId           String
+  zonaLabel        String
+  subcomponenteId  String
   subcomponenteLabel String
-  tipoIntervencion   String
-  costoManoObra      Float    @default(0)
-  costoMateriales    Float    @default(0)
-  activo             Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  tipoIntervencion InterventionType
+  costoManoObra    Float            @default(0)
+  costoMateriales  Float            @default(0)
+  activo           Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@unique([zonaId, subcomponenteId, tipoIntervencion])
   @@map("price_templates")

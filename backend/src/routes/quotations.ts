@@ -148,8 +148,19 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       numero: result.numero,
       fecha: result.createdAt.toLocaleDateString('es-PE'),
       validezDias: result.validezDias,
-      cliente: result.cliente,
-      vehiculo: result.vehiculo,
+      cliente: {
+        nombre: result.cliente.nombre,
+        dni_ruc: result.cliente.dni_ruc ?? undefined,
+        telefono: result.cliente.telefono,
+        email: result.cliente.email ?? undefined,
+      },
+      vehiculo: {
+        placa: result.vehiculo.placa,
+        marca: result.vehiculo.marca,
+        modelo: result.vehiculo.modelo,
+        anio: result.vehiculo.anio ?? undefined,
+        color: result.vehiculo.color ?? undefined,
+      },
       aseguradora: result.aseguradora,
       numeroSiniestro: result.numeroSiniestro ?? undefined,
       items: result.items.map(i => ({
