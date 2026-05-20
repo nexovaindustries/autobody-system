@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, FileText, Download, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Printer, CheckCircle, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import QuotationForm from '@/components/quotation/QuotationForm';
+import PrintQuotation from '@/components/quotation/PrintQuotation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import clsx from 'clsx';
+import { toast } from 'react-hot-toast';
 
 export default function QuotationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [page, setPage] = useState(1);
+  const [printQuotation, setPrintQuotation] = useState<any>(null);
 
   const { data, refetch } = useQuery({
     queryKey: ['quotations', page],
@@ -19,6 +22,27 @@ export default function QuotationsPage() {
 
   const quotations = data?.data?.items ?? [];
   const totalPages = data?.data?.totalPages ?? 1;
+
+  const handlePrint = async (quotationId: string) => {
+    try {
+      const toastId = toast.loading('Cargando proforma para impresión...');
+      const { data: res } = await api.get(`/quotations/${quotationId}`);
+      if (res.success && res.data) {
+        setPrintQuotation(res.data);
+        toast.dismiss(toastId);
+        
+        // Allow DOM to update before triggering print
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      } else {
+        toast.error('No se pudo cargar la proforma', { id: toastId });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al preparar impresión');
+    }
+  };
 
   if (showForm) {
     return (
@@ -32,7 +56,13 @@ export default function QuotationsPage() {
             <p className="text-gray-500 text-sm">Selecciona zonas y configura los precios</p>
           </div>
         </div>
-        <QuotationForm onSuccess={() => { setShowForm(false); refetch(); }} />
+        <QuotationForm onSuccess={(newQ: any) => { 
+          setShowForm(false); 
+          refetch(); 
+          if (newQ && newQ.id) {
+            handlePrint(newQ.id);
+          }
+        }} />
       </div>
     );
   }
@@ -74,7 +104,7 @@ export default function QuotationsPage() {
                 </tr>
               )}
               {quotations.map((q: {
-                id: string; numero: string; aprobada: boolean; pdfPath?: string;
+                id: string; numero: string; aprobada: boolean;
                 total: number; aseguradora: string; createdAt: string;
                 cliente: { nombre: string }; vehiculo: { placa: string; marca: string; modelo: string };
               }) => (
@@ -104,17 +134,14 @@ export default function QuotationsPage() {
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     {format(new Date(q.createdAt), 'dd/MM/yy', { locale: es })}
                   </td>
-                  <td className="px-4 py-3">
-                    {q.pdfPath && (
-                      <a
-                        href={`/pdfs/${q.pdfPath}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-ghost p-2 rounded-lg"
-                      >
-                        <Download size={14} />
-                      </a>
-                    )}
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => handlePrint(q.id)}
+                      className="btn-ghost p-2 rounded-lg text-brand-400 hover:text-brand-300 hover:bg-surface-800"
+                      title="Imprimir Proforma"
+                    >
+                      <Printer size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -130,6 +157,10 @@ export default function QuotationsPage() {
           </div>
         )}
       </div>
+
+      {/* Hidden Print Container */}
+      <PrintQuotation quotation={printQuotation} />
     </div>
   );
 }
+

@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@autobody/shared": "*",
+    "@supabase/supabase-js": "^2.106.0",
     "@tanstack/react-query": "^5.17.15",
     "axios": "^1.6.5",
+    "bcryptjs": "^2.4.3",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.1",
     "lucide-react": "^0.309.0",
@@ -24,6 +26,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
