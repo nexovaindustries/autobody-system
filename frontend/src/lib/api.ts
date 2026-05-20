@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+const getApiBaseUrl = () => {
+  if ((import.meta as any).env?.DEV) {
+    return '/api';
+  }
+  return localStorage.getItem('AUTOBODY_API_URL') || 'http://localhost:3001/api';
+};
+
 export const api = axios.create({
-  baseURL: (import.meta as any).env?.DEV ? '/api' : 'http://localhost:3001/api',
+  baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 
