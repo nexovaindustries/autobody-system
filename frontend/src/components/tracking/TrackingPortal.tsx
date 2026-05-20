@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Clock, CheckCircle, AlertTriangle, Package } from 'lucide-react';
-import axios from 'axios';
+import { api } from '@/lib/api';
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -42,7 +42,7 @@ export default function TrackingPortal() {
 
   const { data, isLoading, isError, error } = useQuery<{ success: boolean; data: TrackingData }>({
     queryKey: ['tracking', searchCode],
-    queryFn: () => axios.get(`/api/tracking/${searchCode}`).then(r => r.data),
+    queryFn: () => api.get(`/api/tracking/${searchCode}`).then(r => r.data),
     enabled: !!searchCode,
     retry: false,
   });
