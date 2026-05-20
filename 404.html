@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Autobody SAC</title>
+    <script>
+      // SPA redirect for GitHub Pages + HashRouter
+      // When GH Pages returns 404 for a path like /autobody-system/seguimiento,
+      // redirect to the root with the path converted to a hash fragment.
+      // e.g. /autobody-system/seguimiento → /autobody-system/#/seguimiento
+      (function() {
+        var basePath = '/autobody-system';
+        var path = window.location.pathname;
+        var search = window.location.search;
+        // Strip the repo base from the path
+        var routePath = path.replace(basePath, '') || '/';
+        // Build the hash URL and redirect
+        window.location.replace(
+          window.location.protocol + '//' + window.location.host +
+          basePath + '/' + '#' + routePath + search
+        );
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
