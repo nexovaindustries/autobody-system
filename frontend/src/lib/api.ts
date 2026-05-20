@@ -59,8 +59,28 @@ class ApiMockClient {
     }
   }
 
-  // GET Mock Router
+  private handleResponse(res: { data: any }): { data: any } {
+    if (res && res.data && res.data.success === false) {
+      const errMsg = res.data.error || 'Ocurrió un error inesperado';
+      const err = new Error(errMsg) as any;
+      err.response = {
+        status: 400,
+        data: {
+          success: false,
+          error: errMsg
+        }
+      };
+      throw err;
+    }
+    return res;
+  }
+
   async get(url: string, config?: any): Promise<{ data: any }> {
+    return this.handleResponse(await this._get(url, config));
+  }
+
+  // GET Mock Router
+  async _get(url: string, config?: any): Promise<{ data: any }> {
     await this.checkConnection();
     await delay(150);
 
@@ -433,8 +453,12 @@ class ApiMockClient {
     throw new Error(`Endpoint GET desconodido: ${path}`);
   }
 
-  // POST Mock Router
   async post(url: string, data?: any, config?: any): Promise<{ data: any }> {
+    return this.handleResponse(await this._post(url, data, config));
+  }
+
+  // POST Mock Router
+  async _post(url: string, data?: any, config?: any): Promise<{ data: any }> {
     await this.checkConnection();
     await delay(200);
 
@@ -770,8 +794,12 @@ class ApiMockClient {
     throw new Error(`Endpoint POST desconocido: ${path}`);
   }
 
-  // PATCH Mock Router
   async patch(url: string, data?: any, config?: any): Promise<{ data: any }> {
+    return this.handleResponse(await this._patch(url, data, config));
+  }
+
+  // PATCH Mock Router
+  async _patch(url: string, data?: any, config?: any): Promise<{ data: any }> {
     await this.checkConnection();
     await delay(150);
 
@@ -865,8 +893,12 @@ class ApiMockClient {
     throw new Error(`Endpoint PATCH desconocido: ${path}`);
   }
 
-  // DELETE Mock Router
   async delete(url: string, config?: any): Promise<{ data: any }> {
+    return this.handleResponse(await this._delete(url, config));
+  }
+
+  // DELETE Mock Router
+  async _delete(url: string, config?: any): Promise<{ data: any }> {
     await this.checkConnection();
     await delay(100);
 
