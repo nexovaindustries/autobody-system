@@ -343,8 +343,9 @@ class ApiMockClient {
     }
 
     // 8. GET /tracking/:codigo
-    if (path.startsWith('/tracking/')) {
-      const codigo = path.split('/')[2].toUpperCase().trim();
+    if (path.startsWith('/tracking/') || path.startsWith('/api/tracking/')) {
+      const parts = path.split('/');
+      const codigo = parts[parts.length - 1].toUpperCase().trim();
       
       const { data: order, error } = await supabase
         .from('orders')
