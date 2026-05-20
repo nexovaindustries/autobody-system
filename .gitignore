@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+*.env.local
+pdfs/
+.DS_Store
+*.log
+.prisma/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal

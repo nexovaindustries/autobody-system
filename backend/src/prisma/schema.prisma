@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  RECEPCIONISTA
+  TECNICO
+}
+
+enum OrderStatus {
+  RECIBIDO
+  EN_EVALUACION
+  ESPERANDO_REPUESTOS
+  EN_PLANCHADO
+  EN_PINTURA
+  EN_CONTROL_CALIDAD
+  LISTO
+  ENTREGADO
+}
+
+enum InterventionType {
+  REEMPLAZO
+  PLANCHADO
+  MASILLA_Y_PINTURA
+  PINTURA_SOLAMENTE
+  REPARACION
+  REVISION_DIAGNOSTICO
+  LIMPIEZA_DETAILING
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(RECEPCIONISTA)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotations   Quotation[]
+  orders       Order[]      @relation("TecnicoOrders")
+  statusLogs   OrderStatusLog[]
+
+  @@map("users")
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  nombre    String
+  dni_ruc   String?
+  telefono  String
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicles   Vehicle[]
+  quotations Quotation[]
+  orders     Order[]
+
+  @@map("customers")
+}
+
+model Vehicle {
+  id          String   @id @default(uuid())
+  placa       String   @unique
+  marca       String
+  modelo      String
+  anio        Int?
+  color       String?
+  kilometraje Int?
+  customerId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  quotations Quotation[]
+  orders     Order[]
+
+  @@map("vehicles")
+}
+
+model Quotation {
+  id               String   @id @default(uuid())
+  numero           String   @unique
+  clienteId        String
+  vehiculoId       String
+  aseguradora      String
+  numeroSiniestro  String?
+  tiempoEstimadoDias Int    @default(5)
+  notas            String?
+  validezDias      Int      @default(15)
+  subtotal         Decimal  @db.Decimal(10, 2)
+  igv              Decimal  @db.Decimal(10, 2)
+  total            Decimal  @db.Decimal(10, 2)
+  aprobada         Boolean  @default(false)
+  createdById      String
+  pdfPath          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cliente    Customer        @relation(fields: [clienteId], references: [id])
+  vehiculo   Vehicle         @relation(fields: [vehiculoId], references: [id])
+  createdBy  User            @relation(fields: [createdById], references: [id])
+  items      QuotationItem[]
+  order      Order?
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id                 String           @id @default(uuid())
+  cotizacionId       String
+  zonaId             String
+  zonaLabel          String
+  subcomponenteId    String
+  subcomponenteLabel String
+  tipoIntervencion   InterventionType
+  descripcion        String?
+  costoManoObra      Decimal          @db.Decimal(10, 2)
+  costoMateriales    Decimal          @db.Decimal(10, 2)
+  subtotal           Decimal          @db.Decimal(10, 2)
+  createdAt          DateTime         @default(now())
+
+  cotizacion Quotation @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_items")
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  codigoSeguimiento String     @unique
+  cotizacionId     String      @unique
+  clienteId        String
+  vehiculoId       String
+  tecnicoId        String?
+  status           OrderStatus @default(RECIBIDO)
+  mensajeCliente   String?
+  fechaEstimadaEntrega DateTime?
+  notas            String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  cotizacion  Quotation        @relation(fields: [cotizacionId], references: [id])
+  cliente     Customer         @relation(fields: [clienteId], references: [id])
+  vehiculo    Vehicle          @relation(fields: [vehiculoId], references: [id])
+  tecnico     User?            @relation("TecnicoOrders", fields: [tecnicoId], references: [id])
+  statusLogs  OrderStatusLog[]
+
+  @@map("orders")
+}
+
+model OrderStatusLog {
+  id        String      @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  mensaje   String?
+  userId    String
+  createdAt DateTime    @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id])
+  user   User  @relation(fields: [userId], references: [id])
+
+  @@map("order_status_logs")
+}
+
+model PriceTemplate {
+  id               String           @id @default(uuid())
+  zonaId           String
+  zonaLabel        String
+  subcomponenteId  String
+  subcomponenteLabel String
+  tipoIntervencion InterventionType
+  costoManoObra    Decimal          @db.Decimal(10, 2)
+  costoMateriales  Decimal          @db.Decimal(10, 2)
+  activo           Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([zonaId, subcomponenteId, tipoIntervencion])
+  @@map("price_templates")
+}
