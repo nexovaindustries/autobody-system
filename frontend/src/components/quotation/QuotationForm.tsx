@@ -16,8 +16,8 @@ interface QuotationItem {
   subcomponenteLabel: string;
   tipoIntervencion: InterventionType;
   descripcion: string;
-  costoManoObra: number;
-  costoMateriales: number;
+  costoManoObra: number | string;
+  costoMateriales: number | string;
 }
 
 interface SelectedSubcomponent {
@@ -45,7 +45,7 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
     validezDias: 15,
   });
 
-  const subtotal = items.reduce((acc, i) => acc + i.costoManoObra + i.costoMateriales, 0);
+  const subtotal = items.reduce((acc, i) => acc + (Number(i.costoManoObra) || 0) + (Number(i.costoMateriales) || 0), 0);
   const igv = subtotal * IGV;
   const total = subtotal + igv;
 
@@ -101,8 +101,8 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
         subcomponenteLabel: sub.label,
         tipoIntervencion: tipo,
         descripcion: '',
-        costoManoObra: 0,
-        costoMateriales: 0,
+        costoManoObra: '',
+        costoMateriales: '',
       }]);
     }
   };
@@ -158,8 +158,8 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
         subcomponenteLabel: i.subcomponenteLabel,
         tipoIntervencion: i.tipoIntervencion,
         descripcion: i.descripcion || undefined,
-        costoManoObra: i.costoManoObra,
-        costoMateriales: i.costoMateriales,
+        costoManoObra: Number(i.costoManoObra) || 0,
+        costoMateriales: Number(i.costoMateriales) || 0,
       })),
       tiempoEstimadoDias: meta.tiempoEstimadoDias,
       notas: meta.notas || undefined,
@@ -331,7 +331,7 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
                           step="0.01"
                           className="bg-surface-800 border border-surface-700 rounded px-2 py-1.5 text-xs text-right w-24 min-h-[36px]"
                           value={item.costoManoObra}
-                          onChange={e => updateItem(idx, 'costoManoObra', Number(e.target.value))}
+                          onChange={e => updateItem(idx, 'costoManoObra', e.target.value)}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -341,11 +341,11 @@ export default function QuotationForm({ onSuccess }: { onSuccess?: (data: unknow
                           step="0.01"
                           className="bg-surface-800 border border-surface-700 rounded px-2 py-1.5 text-xs text-right w-24 min-h-[36px]"
                           value={item.costoMateriales}
-                          onChange={e => updateItem(idx, 'costoMateriales', Number(e.target.value))}
+                          onChange={e => updateItem(idx, 'costoMateriales', e.target.value)}
                         />
                       </td>
                       <td className="px-4 py-3 text-right text-white font-mono text-xs font-semibold">
-                        S/. {(item.costoManoObra + item.costoMateriales).toFixed(2)}
+                        S/. {((Number(item.costoManoObra) || 0) + (Number(item.costoMateriales) || 0)).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => removeItem(idx)} className="text-red-500 hover:text-red-400 p-1">

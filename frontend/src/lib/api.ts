@@ -145,7 +145,6 @@ class ApiMockClient {
     if (path === '/quotations') {
       const page = Number(params.page || 1);
       const limit = Number(params.limit || 20);
-      const skip = (page - 1) * limit;
 
       let query = supabase
         .from('quotations')
@@ -154,7 +153,7 @@ class ApiMockClient {
           cliente:customers(*),
           vehiculo:vehicles(*),
           createdBy:users(id, name)
-        `, { count: 'exact' });
+        `);
 
       if (params.aseguradora) {
         query = query.eq('aseguradora', params.aseguradora);
@@ -163,18 +162,31 @@ class ApiMockClient {
         query = query.eq('aprobada', params.aprobada === 'true');
       }
 
-      const { data: items, count, error } = await query
-        .order('createdAt', { ascending: false })
-        .range(skip, skip + limit - 1);
+      const { data: allItems, error } = await query.order('createdAt', { ascending: false });
 
       if (error) throw new Error(error.message);
-      const total = count || 0;
+
+      let items = allItems || [];
+
+      // Filter by search string (numero, client name, or plate)
+      if (params.search) {
+        const searchLower = String(params.search).toLowerCase();
+        items = items.filter(q => 
+          (q.numero && q.numero.toLowerCase().includes(searchLower)) ||
+          (q.cliente && q.cliente.nombre && q.cliente.nombre.toLowerCase().includes(searchLower)) ||
+          (q.vehiculo && q.vehiculo.placa && q.vehiculo.placa.toLowerCase().includes(searchLower))
+        );
+      }
+
+      const total = items.length;
+      const skip = (page - 1) * limit;
+      const paginatedItems = items.slice(skip, skip + limit);
 
       return {
         data: {
           success: true,
           data: {
-            items: items || [],
+            items: paginatedItems,
             total,
             page,
             limit,
@@ -844,18 +856,23 @@ class ApiMockClient {
     // 3. PATCH /orders/:id/status
     if (path.startsWith('/orders/') && path.endsWith('/status')) {
       const id = path.split('/')[2];
-      const { status, mensaje } = data || {};
+      const { status, mensaje, tecnicoId } = data || {};
 
       const userId = getUserIdFromSession();
       if (!userId) throw new Error('Sesión de usuario no válida');
 
+      const updatePayload: any = {
+        status,
+        mensajeCliente: mensaje || null
+      };
+      if (tecnicoId !== undefined) {
+        updatePayload.tecnicoId = tecnicoId;
+      }
+
       // Update Order Status
       const { error: oError } = await supabase
         .from('orders')
-        .update({
-          status,
-          mensajeCliente: mensaje || null
-        })
+        .update(updatePayload)
         .eq('id', id);
 
       if (oError) throw new Error(oError.message);
@@ -879,6 +896,7 @@ class ApiMockClient {
           *,
           cliente:customers(*),
           vehiculo:vehicles(*),
+          tecnico:users(id, name),
           statusLogs:order_status_logs(*, user:users(id, name))
         `)
         .eq('id', id)

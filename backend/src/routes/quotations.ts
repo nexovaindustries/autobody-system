@@ -189,12 +189,19 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 });
 
 router.get('/', async (req: AuthRequest, res: Response) => {
-  const { page = '1', limit = '20', aseguradora, aprobada } = req.query;
+  const { page = '1', limit = '20', aseguradora, aprobada, search } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, any> = {};
   if (aseguradora) where.aseguradora = aseguradora;
   if (aprobada !== undefined) where.aprobada = aprobada === 'true';
+  if (search) {
+    where.OR = [
+      { numero: { contains: String(search), mode: 'insensitive' } },
+      { cliente: { nombre: { contains: String(search), mode: 'insensitive' } } },
+      { vehiculo: { placa: { contains: String(search), mode: 'insensitive' } } },
+    ];
+  }
 
   const [items, total] = await Promise.all([
     prisma.quotation.findMany({

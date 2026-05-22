@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, Printer, CheckCircle, Clock } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Printer, CheckCircle, Clock, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import QuotationForm from '@/components/quotation/QuotationForm';
 import PrintQuotation from '@/components/quotation/PrintQuotation';
@@ -12,12 +12,29 @@ import { toast } from 'react-hot-toast';
 export default function QuotationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const [printQuotation, setPrintQuotation] = useState<any>(null);
 
+  const queryClient = useQueryClient();
+
   const { data, refetch } = useQuery({
-    queryKey: ['quotations', page],
-    queryFn: () => api.get('/quotations', { params: { page, limit: 20 } }).then(r => r.data),
+    queryKey: ['quotations', page, search],
+    queryFn: () => api.get('/quotations', { params: { page, limit: 20, search: search || undefined } }).then(r => r.data),
     enabled: !showForm,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (cotizacionId: string) => api.post('/orders', { cotizacionId }).then(r => r.data),
+    onSuccess: (data) => {
+      toast.success(`Orden creada con código: ${data.data.codigoSeguimiento || data.data.codigo}`);
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      refetch();
+    },
+    onError: (err: any) => {
+      const errMsg = err.response?.data?.error || 'Error al aprobar la proforma y crear la orden';
+      toast.error(errMsg);
+    },
   });
 
   const quotations = data?.data?.items ?? [];
@@ -80,6 +97,18 @@ export default function QuotationsPage() {
         </button>
       </div>
 
+      <div className="flex gap-3 mb-4">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            className="input pl-9"
+            placeholder="Buscar por número, cliente o placa..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+          />
+        </div>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -99,7 +128,7 @@ export default function QuotationsPage() {
               {quotations.length === 0 && (
                 <tr>
                   <td colSpan={8} className="text-center py-12 text-gray-500">
-                    No hay proformas. <button onClick={() => setShowForm(true)} className="text-brand-400 hover:underline">Crear la primera</button>
+                    No se encontraron proformas. <button onClick={() => setShowForm(true)} className="text-brand-400 hover:underline">Crear la primera</button>
                   </td>
                 </tr>
               )}
@@ -135,13 +164,29 @@ export default function QuotationsPage() {
                     {format(new Date(q.createdAt), 'dd/MM/yy', { locale: es })}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handlePrint(q.id)}
-                      className="btn-ghost p-2 rounded-lg text-brand-400 hover:text-brand-300 hover:bg-surface-800"
-                      title="Imprimir Proforma"
-                    >
-                      <Printer size={15} />
-                    </button>
+                    <div className="inline-flex gap-1 justify-end w-full">
+                      {!q.aprobada && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`¿Está seguro de aprobar la proforma ${q.numero} y crear la orden de trabajo activa?`)) {
+                              approveMutation.mutate(q.id);
+                            }
+                          }}
+                          disabled={approveMutation.isPending}
+                          className="btn-ghost p-2 rounded-lg text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                          title="Aprobar y Crear Orden"
+                        >
+                          <CheckCircle size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handlePrint(q.id)}
+                        className="btn-ghost p-2 rounded-lg text-brand-400 hover:text-brand-300 hover:bg-surface-800"
+                        title="Imprimir Proforma"
+                      >
+                        <Printer size={15} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

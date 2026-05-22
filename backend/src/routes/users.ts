@@ -26,7 +26,7 @@ const updateUserSchema = z.object({
 
 router.use(authenticate);
 
-router.get('/', authorize('ADMIN'), async (_req: AuthRequest, res: Response) => {
+router.get('/', authorize('ADMIN', 'RECEPCIONISTA'), async (_req: AuthRequest, res: Response) => {
   const users = await prisma.user.findMany({
     select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
     orderBy: { name: 'asc' },

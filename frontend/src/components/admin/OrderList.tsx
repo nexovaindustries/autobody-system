@@ -41,34 +41,48 @@ function StatusModal({ order, onClose }: StatusModalProps) {
   const queryClient = useQueryClient();
   const [newStatus, setNewStatus] = useState<OrderStatus>(order.status);
   const [mensaje, setMensaje] = useState(order.mensajeCliente ?? '');
+  const [tecnicoId, setTecnicoId] = useState<string>(order.tecnico?.id ?? '');
+
+  const { data: usersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users').then(r => r.data),
+  });
+
+  const tecnicos = (usersData?.data ?? []).filter(
+    (u: any) => u.role === 'TECNICO' && u.active
+  );
 
   const mutation = useMutation({
-    mutationFn: () => api.patch(`/orders/${order.id}/status`, { status: newStatus, mensaje }),
+    mutationFn: () => api.patch(`/orders/${order.id}/status`, {
+      status: newStatus,
+      mensaje,
+      tecnicoId: tecnicoId || null,
+    }),
     onSuccess: () => {
-      toast.success('Estado actualizado');
+      toast.success('Orden actualizada correctamente');
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       onClose();
     },
-    onError: () => toast.error('Error al actualizar estado'),
+    onError: () => toast.error('Error al actualizar la orden'),
   });
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="card w-full max-w-md p-6">
-        <h3 className="font-bold text-white mb-1">Cambiar Estado</h3>
+      <div className="card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 className="font-bold text-white mb-1">Cambiar Estado / Asignar Técnico</h3>
         <p className="text-gray-400 text-sm mb-4">
           {order.vehiculo.placa} · {order.cliente.nombre}
         </p>
 
         <div className="mb-4">
           <label className="label">Nuevo Estado</label>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto pr-1 border border-surface-700 rounded-lg p-2 bg-surface-900">
             {STATUS_ORDER.map(s => (
               <button
                 key={s}
                 onClick={() => setNewStatus(s)}
                 className={clsx(
-                  'text-left px-4 py-3 rounded-lg text-sm border transition-all min-h-[44px]',
+                  'text-left px-3 py-2 rounded-lg text-xs border transition-all min-h-[36px]',
                   newStatus === s
                     ? 'bg-brand-500/20 border-brand-500 text-white'
                     : 'bg-surface-800 border-surface-700 text-gray-300 hover:border-surface-600'
@@ -78,6 +92,20 @@ function StatusModal({ order, onClose }: StatusModalProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="label">Técnico Responsable</label>
+          <select
+            className="select w-full"
+            value={tecnicoId}
+            onChange={e => setTecnicoId(e.target.value)}
+          >
+            <option value="">Sin asignar / Ninguno</option>
+            {tecnicos.map((t: any) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="mb-6">
@@ -94,7 +122,7 @@ function StatusModal({ order, onClose }: StatusModalProps) {
         <div className="flex gap-3">
           <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1">
-            {mutation.isPending ? 'Guardando...' : 'Confirmar Cambio'}
+            {mutation.isPending ? 'Guardando...' : 'Confirmar'}
           </button>
         </div>
       </div>

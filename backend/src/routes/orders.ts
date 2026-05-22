@@ -23,6 +23,7 @@ const createOrderSchema = z.object({
 const updateStatusSchema = z.object({
   status: z.enum(['RECIBIDO', 'EN_EVALUACION', 'ESPERANDO_REPUESTOS', 'EN_PLANCHADO', 'EN_PINTURA', 'EN_CONTROL_CALIDAD', 'LISTO', 'ENTREGADO']),
   mensaje: z.string().optional(),
+  tecnicoId: z.string().uuid().optional().nullable(),
 });
 
 router.use(authenticate);
@@ -106,9 +107,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   if (tecnicoId) where.tecnicoId = tecnicoId;
   if (search) {
     where.OR = [
-      { codigoSeguimiento: { contains: String(search) } },
-      { cliente: { nombre: { contains: String(search) } } },
-      { vehiculo: { placa: { contains: String(search) } } },
+      { codigoSeguimiento: { contains: String(search), mode: 'insensitive' } },
+      { cliente: { nombre: { contains: String(search), mode: 'insensitive' } } },
+      { vehiculo: { placa: { contains: String(search), mode: 'insensitive' } } },
     ];
   }
 
@@ -194,13 +195,18 @@ router.patch('/:id/status', async (req: AuthRequest, res: Response) => {
     return res.status(400).json({ success: false, error: 'Datos inválidos', details: parsed.error.errors });
   }
 
-  const { status, mensaje } = parsed.data;
+  const { status, mensaje, tecnicoId } = parsed.data;
 
   try {
     await prisma.$transaction(async (tx) => {
+      const updateData: any = { status, mensajeCliente: mensaje };
+      if (tecnicoId !== undefined) {
+        updateData.tecnicoId = tecnicoId;
+      }
+
       await tx.order.update({
         where: { id: req.params.id },
-        data: { status, mensajeCliente: mensaje },
+        data: updateData,
       });
 
       await tx.orderStatusLog.create({
