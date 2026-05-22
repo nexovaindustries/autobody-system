@@ -77,7 +77,9 @@ export default function QuotationsPage() {
           setShowForm(false); 
           refetch(); 
           if (newQ && newQ.id) {
-            handlePrint(newQ.id);
+            // Use the already-returned full quotation data directly — no extra GET needed
+            setPrintQuotation(newQ);
+            setTimeout(() => window.print(), 500);
           }
         }} />
       </div>

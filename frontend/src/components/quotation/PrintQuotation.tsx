@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { INTERVENTION_LABELS } from '@autobody/shared';
@@ -46,11 +47,24 @@ interface PrintQuotationProps {
 }
 
 export default function PrintQuotation({ quotation }: PrintQuotationProps) {
+  const [printRoot, setPrintRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    let el = document.getElementById('print-root');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'print-root';
+      document.body.appendChild(el);
+    }
+    setPrintRoot(el);
+  }, []);
+
   if (!quotation) return null;
+  if (!printRoot) return null;
 
   const fechaFormateada = format(new Date(quotation.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es });
 
-  return (
+  return createPortal(
     <div className="print-only hidden print:block w-full max-w-[800px] mx-auto p-8 text-black bg-white font-sans">
       {/* Header Corporativo */}
       <div className="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-6">
@@ -245,6 +259,7 @@ export default function PrintQuotation({ quotation }: PrintQuotationProps) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    printRoot
   );
 }

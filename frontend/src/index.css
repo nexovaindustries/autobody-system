@@ -71,8 +71,18 @@
 }
 
 @media print {
-  /* Hide all screen UI elements */
-  body, html, #root {
+  /* Hide the screen-only root entirely, which prevents blank pages and layout offsets */
+  #root {
+    display: none !important;
+  }
+
+  /* Display the print portal container */
+  #print-root {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  body, html {
     background: white !important;
     color: black !important;
     width: 100% !important;
@@ -81,28 +91,15 @@
     padding: 0 !important;
   }
 
-  /* Hide absolutely everything on the page by default */
-  body * {
-    visibility: hidden;
-  }
-
-  /* Only make the print container and its contents visible and printable */
-  .print-only, .print-only * {
-    visibility: visible !important;
-  }
-
-  /* Position the printable area at the top-left of the page */
+  /* Ensure the print container and its contents are printed correctly */
   .print-only {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
     color: black !important;
-    display: block !important;
   }
 
   /* Table styling optimization for print */

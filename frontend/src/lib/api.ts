@@ -4,6 +4,18 @@ import bcrypt from 'bcryptjs';
 // Helper to simulate network latency
 const delay = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Generate a UUID v4 (Supabase tables created via Prisma don't have DEFAULT gen_random_uuid())
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+};
+
 // Helper to decode a simulated token to get user id
 const getUserIdFromSession = () => {
   const token = localStorage.getItem('token');
@@ -122,14 +134,7 @@ class ApiMockClient {
       const id = path.split('/')[2];
       const { data: quotation, error } = await supabase
         .from('quotations')
-        .select(`
-          *,
-          cliente:customers(*),
-          vehiculo:vehicles(*),
-          items:quotation_items(*),
-          createdBy:users(id, name),
-          order:orders(*)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
@@ -137,8 +142,34 @@ class ApiMockClient {
         return { data: { success: false, error: 'Proforma no encontrada' } };
       }
 
-      // Format response keys to match CamelCase expectations if needed, but our DB keys are identical.
-      return { data: { success: true, data: quotation } };
+      // Fetch related data with separate queries (avoids FK requirement in Supabase)
+      const [clienteRes, vehiculoRes, itemsRes, createdByRes, orderRes] = await Promise.all([
+        quotation.clienteId
+          ? supabase.from('customers').select('*').eq('id', quotation.clienteId).single()
+          : Promise.resolve({ data: null }),
+        quotation.vehiculoId
+          ? supabase.from('vehicles').select('*').eq('id', quotation.vehiculoId).single()
+          : Promise.resolve({ data: null }),
+        supabase.from('quotation_items').select('*').eq('cotizacionId', id),
+        quotation.createdById
+          ? supabase.from('users').select('id, name').eq('id', quotation.createdById).single()
+          : Promise.resolve({ data: null }),
+        supabase.from('orders').select('*').eq('cotizacionId', id).maybeSingle(),
+      ]);
+
+      return {
+        data: {
+          success: true,
+          data: {
+            ...quotation,
+            cliente: clienteRes.data || null,
+            vehiculo: vehiculoRes.data || null,
+            items: itemsRes.data || [],
+            createdBy: createdByRes.data || null,
+            order: orderRes.data || null,
+          },
+        },
+      };
     }
 
     // 4. GET /quotations
@@ -146,41 +177,61 @@ class ApiMockClient {
       const page = Number(params.page || 1);
       const limit = Number(params.limit || 20);
 
-      let query = supabase
-        .from('quotations')
-        .select(`
-          *,
-          cliente:customers(*),
-          vehiculo:vehicles(*),
-          createdBy:users(id, name)
-        `);
+      // Fetch base quotations without relational joins
+      let baseQuery = supabase.from('quotations').select('*');
 
       if (params.aseguradora) {
-        query = query.eq('aseguradora', params.aseguradora);
+        baseQuery = baseQuery.eq('aseguradora', params.aseguradora);
       }
       if (params.aprobada !== undefined) {
-        query = query.eq('aprobada', params.aprobada === 'true');
+        baseQuery = baseQuery.eq('aprobada', params.aprobada === 'true');
       }
 
-      const { data: allItems, error } = await query.order('createdAt', { ascending: false });
-
+      const { data: allItems, error } = await baseQuery.order('createdAt', { ascending: false });
       if (error) throw new Error(error.message);
 
-      let items = allItems || [];
+      let items: any[] = allItems || [];
 
-      // Filter by search string (numero, client name, or plate)
+      // Batch fetch related customers and vehicles (avoids N+1 and FK requirements)
+      const clienteIds = [...new Set(items.map((q: any) => q.clienteId).filter(Boolean))];
+      const vehiculoIds = [...new Set(items.map((q: any) => q.vehiculoId).filter(Boolean))];
+
+      const [clientesRes, vehiculosRes] = await Promise.all([
+        clienteIds.length > 0
+          ? supabase.from('customers').select('*').in('id', clienteIds)
+          : Promise.resolve({ data: [] }),
+        vehiculoIds.length > 0
+          ? supabase.from('vehicles').select('*').in('id', vehiculoIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const clienteMap: Record<string, any> = Object.fromEntries(
+        (clientesRes.data || []).map((c: any) => [c.id, c])
+      );
+      const vehiculoMap: Record<string, any> = Object.fromEntries(
+        (vehiculosRes.data || []).map((v: any) => [v.id, v])
+      );
+
+      // Enrich items with related data in memory
+      let enrichedItems = items.map((q: any) => ({
+        ...q,
+        cliente: clienteMap[q.clienteId] || null,
+        vehiculo: vehiculoMap[q.vehiculoId] || null,
+      }));
+
+      // Filter by search string after enrichment (can now search by client name and plate)
       if (params.search) {
         const searchLower = String(params.search).toLowerCase();
-        items = items.filter(q => 
+        enrichedItems = enrichedItems.filter((q: any) =>
           (q.numero && q.numero.toLowerCase().includes(searchLower)) ||
           (q.cliente && q.cliente.nombre && q.cliente.nombre.toLowerCase().includes(searchLower)) ||
           (q.vehiculo && q.vehiculo.placa && q.vehiculo.placa.toLowerCase().includes(searchLower))
         );
       }
 
-      const total = items.length;
+      const total = enrichedItems.length;
       const skip = (page - 1) * limit;
-      const paginatedItems = items.slice(skip, skip + limit);
+      const paginatedItems = enrichedItems.slice(skip, skip + limit);
 
       return {
         data: {
@@ -190,9 +241,9 @@ class ApiMockClient {
             total,
             page,
             limit,
-            totalPages: Math.ceil(total / limit)
-          }
-        }
+            totalPages: Math.ceil(total / limit),
+          },
+        },
       };
     }
 
@@ -564,11 +615,13 @@ class ApiMockClient {
       const { data: createdUser, error } = await supabase
         .from('users')
         .insert({
+          id: generateUUID(),
           name,
           email,
           password: hashedPassword,
           role,
-          active: true
+          active: true,
+          updatedAt: new Date().toISOString()
         })
         .select('id, name, email, role, active, createdAt')
         .single();
@@ -593,13 +646,16 @@ class ApiMockClient {
         if (existingCust) {
           clienteId = existingCust.id;
         } else {
+          const newCustId = generateUUID();
           const { data: newCust, error: cError } = await supabase
             .from('customers')
             .insert({
+              id: newCustId,
               nombre: cData.nombre,
               dni_ruc: cData.dni_ruc || null,
               telefono: cData.telefono,
-              email: cData.email || null
+              email: cData.email || null,
+              updatedAt: new Date().toISOString()
             })
             .select('id')
             .single();
@@ -621,16 +677,19 @@ class ApiMockClient {
         if (existingVeh) {
           vehiculoId = existingVeh.id;
         } else {
+          const newVehId = generateUUID();
           const { data: newVeh, error: vError } = await supabase
             .from('vehicles')
             .insert({
+              id: newVehId,
               placa: vData.placa.toUpperCase(),
               marca: vData.marca,
               modelo: vData.modelo,
               anio: vData.anio || null,
               color: vData.color || null,
               kilometraje: vData.kilometraje || null,
-              customerId: clienteId
+              customerId: clienteId,
+              updatedAt: new Date().toISOString()
             })
             .select('id')
             .single();
@@ -653,9 +712,11 @@ class ApiMockClient {
       if (!createdById) throw new Error('Sesión de usuario no válida');
 
       // Create quotation record
+      const quotationId = generateUUID();
       const { data: quotation, error: qError } = await supabase
         .from('quotations')
         .insert({
+          id: quotationId,
           numero,
           clienteId,
           vehiculoId,
@@ -668,7 +729,8 @@ class ApiMockClient {
           igv,
           total,
           aprobada: false,
-          createdById
+          createdById,
+          updatedAt: new Date().toISOString()
         })
         .select('*')
         .single();
@@ -677,6 +739,7 @@ class ApiMockClient {
 
       // Create items
       const itemsToInsert = qItems.map((item: any) => ({
+        id: generateUUID(),
         cotizacionId: quotation.id,
         zonaId: item.zonaId,
         zonaLabel: item.zonaLabel,
@@ -695,18 +758,21 @@ class ApiMockClient {
 
       if (itemsError) throw new Error(`Error al guardar ítems: ${itemsError.message}`);
 
-      // Query full object to return
-      const { data: fullQuotation } = await supabase
-        .from('quotations')
-        .select(`
-          *,
-          cliente:customers(*),
-          vehiculo:vehicles(*),
-          items:quotation_items(*),
-          createdBy:users(id, name)
-        `)
-        .eq('id', quotation.id)
-        .single();
+      // Fetch related data individually (avoids Supabase FK requirement)
+      const [clienteRes, vehiculoRes, insertedItemsRes, createdByRes] = await Promise.all([
+        supabase.from('customers').select('*').eq('id', clienteId).single(),
+        supabase.from('vehicles').select('*').eq('id', vehiculoId).single(),
+        supabase.from('quotation_items').select('*').eq('cotizacionId', quotation.id),
+        supabase.from('users').select('id, name').eq('id', createdById).single(),
+      ]);
+
+      const fullQuotation = {
+        ...quotation,
+        cliente: clienteRes.data || null,
+        vehiculo: vehiculoRes.data || null,
+        items: insertedItemsRes.data || [],
+        createdBy: createdByRes.data || null,
+      };
 
       return { data: { success: true, data: fullQuotation } };
     }
@@ -755,9 +821,11 @@ class ApiMockClient {
       if (!creatorId) throw new Error('Sesión de usuario no válida');
 
       // Create Order
+      const orderId = generateUUID();
       const { data: newOrder, error: oError } = await supabase
         .from('orders')
         .insert({
+          id: orderId,
           codigoSeguimiento: trackingCode,
           cotizacionId,
           clienteId: quotation.clienteId,
@@ -765,7 +833,8 @@ class ApiMockClient {
           tecnicoId: tecnicoId || null,
           notas: notas || null,
           fechaEstimadaEntrega: fechaEstimadaEntrega || null,
-          status: 'RECIBIDO'
+          status: 'RECIBIDO',
+          updatedAt: new Date().toISOString()
         })
         .select('*')
         .single();
@@ -776,6 +845,7 @@ class ApiMockClient {
       const { error: logError } = await supabase
         .from('order_status_logs')
         .insert({
+          id: generateUUID(),
           orderId: newOrder.id,
           status: 'RECIBIDO',
           mensaje: 'Vehículo recibido en taller',
@@ -881,6 +951,7 @@ class ApiMockClient {
       const { error: logError } = await supabase
         .from('order_status_logs')
         .insert({
+          id: generateUUID(),
           orderId: id,
           status,
           mensaje: mensaje || 'Actualización de estado en taller',
